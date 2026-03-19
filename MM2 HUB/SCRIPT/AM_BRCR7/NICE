@@ -1,0 +1,186 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local TweenService = game:GetService("TweenService")
+
+local Window = Rayfield:CreateWindow({
+   Name = "AM_BRCR7 MM2 HUB",
+   LoadingTitle = "جاري تشغيل السكربت...",
+   LoadingSubtitle = "بواسطة AM_BRCR7",
+   ConfigurationSaving = { Enabled = false }
+})
+
+local CombatTab = Window:CreateTab("قتال | Combat", 4483362458)
+local MainTab = Window:CreateTab("رئيسي | Main", 4483362458)
+local localplayer = game:GetService("Players").LocalPlayer
+
+-- ======= نظام التوقع =======
+local function getPredictedPosition(targetPlayer, offset)
+    local targetChar = targetPlayer.Character
+    if not targetChar then return nil end
+    local hrp = targetChar:FindFirstChild("HumanoidRootPart")
+    if not hrp then return nil end
+    local velocity = hrp.Velocity
+    local distance = (hrp.Position - localplayer.Character.HumanoidRootPart.Position).Magnitude
+    local bulletSpeed = 300 
+    local timeToHit = distance / bulletSpeed
+    local predictedPos = hrp.Position + velocity * timeToHit
+    if offset then predictedPos = predictedPos + Vector3.new(0, offset, 0) end
+    return predictedPos
+end
+
+local function findMurderer()
+    for _, v in pairs(game.Players:GetPlayers()) do
+        if v.Character and (v.Character:FindFirstChild("Knife") or v.Backpack:FindFirstChild("Knife")) then return v end
+    end
+    return nil
+end
+
+local function findSheriff()
+    for _, v in pairs(game.Players:GetPlayers()) do
+        if v ~= localplayer and v.Character and (v.Character:FindFirstChild("Gun") or v.Backpack:FindFirstChild("Gun")) then return v end
+    end
+    return nil
+end
+
+-- دالة إنشاء الأزرار المستطيلة
+local function CreateRectBtn(name, color, pos, callback)
+    local Gui = Instance.new("ScreenGui", game.CoreGui)
+    local Btn = Instance.new("TextButton", Gui)
+    Btn.Size = UDim2.new(0, 110, 0, 35)
+    Btn.Position = pos
+    Btn.Text = name
+    Btn.BackgroundColor3 = color
+    Btn.TextColor3 = Color3.new(1, 1, 1)
+    Btn.Draggable = true; Btn.Active = true
+    Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 6)
+    Btn.MouseButton1Click:Connect(callback)
+    return Gui
+end
+
+local ShootGui, KillAllGui, SheriffGui
+
+-- ======= تاب قتال | Combat Tab =======
+
+CombatTab:CreateToggle({
+   Name = "إظهار زر إطلاق النار | Show SHOOT Button",
+   CurrentValue = false,
+   Callback = function(Value)
+      if Value then
+         ShootGui = CreateRectBtn("SHOOT MURDER", Color3.fromRGB(180, 0, 0), UDim2.new(0.5, 0, 0.4, 0), function()
+            local murderer = findMurderer()
+            local gun = localplayer.Backpack:FindFirstChild("Gun") or localplayer.Character:FindFirstChild("Gun")
+            if murderer and gun then
+                localplayer.Character.Humanoid:EquipTool(gun)
+                local predictedPosition = getPredictedPosition(murderer, 1)
+                local args = {CFrame.new(localplayer.Character.RightHand.Position), CFrame.new(predictedPosition)}
+                localplayer.Character:WaitForChild("Gun"):WaitForChild("Shoot"):FireServer(unpack(args))
+            end
+         end)
+      else if ShootGui then ShootGui:Destroy() end end
+   end,
+})
+
+CombatTab:CreateToggle({
+   Name = "إظهار زر قتل الكل | Show KILL ALL Button",
+   CurrentValue = false,
+   Callback = function(Value)
+      if Value then
+         KillAllGui = CreateRectBtn("KILL ALL", Color3.fromRGB(50, 0, 0), UDim2.new(0.5, 0, 0.5, 0), function()
+            local knife = localplayer.Backpack:FindFirstChild("Knife") or localplayer.Character:FindFirstChild("Knife")
+            if knife then
+                localplayer.Character.Humanoid:EquipTool(knife)
+                local oldPos = localplayer.Character.HumanoidRootPart.CFrame
+                for _, v in pairs(game.Players:GetPlayers()) do
+                    if v ~= localplayer and v.Character and v.Character:FindFirstChild("HumanoidRootPart") then
+                        localplayer.Character.HumanoidRootPart.CFrame = v.Character.HumanoidRootPart.CFrame
+                        for i=1, 4 do knife:Activate(); task.wait(0.05) end
+                    end
+                end
+                localplayer.Character.HumanoidRootPart.CFrame = oldPos
+            end
+         end)
+      else if KillAllGui then KillAllGui:Destroy() end end
+   end,
+})
+
+CombatTab:CreateToggle({
+   Name = "إظهار زر قتل الشريف | Show SHERIFF KILL Button",
+   CurrentValue = false,
+   Callback = function(Value)
+      if Value then
+         SheriffGui = CreateRectBtn("KILL SHERIFF", Color3.fromRGB(0, 0, 150), UDim2.new(0.5, 0, 0.6, 0), function()
+            local sheriff = findSheriff()
+            local knife = localplayer.Backpack:FindFirstChild("Knife") or localplayer.Character:FindFirstChild("Knife")
+            if sheriff and knife then
+                localplayer.Character.Humanoid:EquipTool(knife)
+                local oldPos = localplayer.Character.HumanoidRootPart.CFrame
+                localplayer.Character.HumanoidRootPart.CFrame = sheriff.Character.HumanoidRootPart.CFrame
+                for i=1, 4 do knife:Activate(); task.wait(0.05) end
+                localplayer.Character.HumanoidRootPart.CFrame = oldPos
+            end
+         end)
+      else if SheriffGui then SheriffGui:Destroy() end end
+   end,
+})
+
+-- ======= تاب رئيسي | Main Tab =======
+
+MainTab:CreateToggle({
+   Name = "جلب السلاح تلقائياً | Auto Get Gun",
+   CurrentValue = false,
+   Callback = function(Value)
+      _G.AutoGet = Value
+      task.spawn(function()
+         while _G.AutoGet do
+            local drop = workspace:FindFirstChild("GunDrop", true) or workspace:FindFirstChild("Pickup", true)
+            if drop then drop.CFrame = localplayer.Character.HumanoidRootPart.CFrame end
+            task.wait(0.3)
+         end
+      end)
+   end,
+})
+
+MainTab:CreateToggle({
+   Name = "تجميع العملات | Auto Farm Coins",
+   CurrentValue = false,
+   Callback = function(Value)
+      _G.CoinFarm = Value
+      task.spawn(function()
+         local count = 0
+         while _G.CoinFarm do
+            for _, v in pairs(workspace:GetDescendants()) do
+               if not _G.CoinFarm or count >= 40 then break end
+               if (v.Name == "Coin_Server" or v.Name == "Coin") and v:IsA("BasePart") then
+                  local dist = (localplayer.Character.HumanoidRootPart.Position - v.Position).Magnitude
+                  local duration = dist / 30
+                  local tween = TweenService:Create(localplayer.Character.HumanoidRootPart, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = v.CFrame})
+                  tween:Play()
+                  tween.Completed:Wait()
+                  count = count + 1
+                  task.wait(0.1)
+               end
+            end
+            if count >= 40 then _G.CoinFarm = false; break end
+            task.wait(1)
+         end
+      end)
+   end,
+})
+
+MainTab:CreateToggle({
+   Name = "كشف اللاعبين | Player ESP",
+   CurrentValue = false,
+   Callback = function(Value)
+      _G.ESP = Value
+      while _G.ESP do
+         for _, p in pairs(game.Players:GetPlayers()) do
+            if p ~= localplayer and p.Character then
+                local h = p.Character:FindFirstChild("Highlight") or Instance.new("Highlight", p.Character)
+                if p.Backpack:FindFirstChild("Knife") or p.Character:FindFirstChild("Knife") then h.FillColor = Color3.new(1,0,0)
+                elseif p.Backpack:FindFirstChild("Gun") or p.Character:FindFirstChild("Gun") then h.FillColor = Color3.new(0,0,1)
+                else h.FillColor = Color3.new(0,1,0) end
+            end
+         end
+         task.wait(1)
+      end
+   end,
+})
